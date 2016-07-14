@@ -1,0 +1,58 @@
+#!/usr/bin/env node
+// vim: set ft=javascript:
+
+'use strict';
+
+const fs = require('fs');
+const Parser = require('../parser').Parser;
+
+process.stdin.setEncoding('utf8');
+process.stdin.on('readable', () => {
+  const chunk = process.stdin.read();
+  if (chunk === null) return;
+  const files = chunk
+    .split('\n')
+    .filter((i) => i)
+    .map((src) => {
+      const parser = new Parser(fs.readFileSync(src).toString());
+      const d = parser.getDeps();
+      const deps = Object.keys(d)
+        .reduce((acc, c) => {
+          d[c].forEach((dep) => acc.add(dep));
+          return acc;
+        }, new Set([]));
+      return {
+        src,
+        ns: parser.getNS(),
+        deps: Array.from(deps.values()),
+      };
+    })
+    .reduce((acc, file) => {
+      acc[file.ns] = file;
+      return acc;
+    }, {});
+
+  // TODO cache
+  const getFileDeps = (file) => {
+    if (!file) return [];
+    const deps = file.deps
+      .reduce((acc, ns) => {
+        getFileDeps(files[ns]).forEach((dep) => acc.add(dep));
+        return acc;
+      }, new Set(file.deps));
+    return Array.from(deps.values());
+  };
+
+  const fileDeps = Object.keys(files).slice(0, 3)
+    .reduce((acc, ns) => {
+      const file = files[ns];
+      acc[ns] = {ns, src: file.src, deps: getFileDeps(file)};
+      return acc;
+    }, {});
+
+  console.log(JSON.stringify(fileDeps));
+});
+
+process.stdin.on('end', () => {
+  process.exit(0);
+});
