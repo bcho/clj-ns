@@ -9,9 +9,9 @@ class Parser {
   }
 
   getNS() {
-    const matched = /\(ns ([^\ ]+).*\)$/.exec(this.src);
+    const matched = /\(ns ([^\ ]+).*\)/.exec(this.src);
     if (!matched) return '*unknown-ns*';
-    return matched[1].trim();
+    return this._normalizeAtom(matched[1]);
   }
 
   getDeps() {
@@ -90,17 +90,24 @@ class Parser {
         while (vector[i + 1] === ' ') i = i + 1;
         let ns = '';
         if (vectorLevel === 1) {
-          while (vector[i + 1] !== ' ') {
+          while (vector[i + 1] !== ' ' && vector[i + 1] !== ']') {
             ns = ns + vector[i + 1];
             i = i + 1;
           }
-          deps.push(ns);
+          deps.push(this._normalizeAtom(ns));
         }
       }
       if (c === ']') vectorLevel -= 1;
     }
 
     return deps;
+  }
+
+  _normalizeAtom(atom) {
+    return atom
+      .trim()
+      .replace(/\)$/, '')
+      .replace(/^\(/, '');
   }
 }
 
