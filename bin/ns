@@ -10,7 +10,7 @@ process.stdin.setEncoding('utf8');
 process.stdin.on('readable', () => {
   const chunk = process.stdin.read();
   if (chunk === null) return;
-  const files = chunk
+  const fileDeps = chunk
     .split('\n')
     .filter((i) => i)
     .map((src) => {
@@ -21,36 +21,32 @@ process.stdin.on('readable', () => {
           d[c].forEach((dep) => acc.add(dep));
           return acc;
         }, new Set([]));
-      return {
-        src,
-        ns: parser.getNS(),
-        deps: Array.from(deps.values()),
-      };
+      return {src, ns: parser.getNS(), deps};
     })
     .reduce((acc, file) => {
       acc[file.ns] = file;
       return acc;
     }, {});
 
-  // TODO cache
-  const getFileDeps = (file) => {
-    if (!file) return [];
-    const deps = file.deps
-      .reduce((acc, ns) => {
-        getFileDeps(files[ns]).forEach((dep) => acc.add(dep));
-        return acc;
-      }, new Set(file.deps));
-    return Array.from(deps.values());
+  let updated = true;
+  while (updated) {
+    updated = false;
+    for (let ns in fileDeps) {
+      const file = fileDeps[ns];
+      const originalDepsCount = file.deps.size;
+      for (let dep of file.deps.values()) {
+        if (!fileDeps[dep]) continue;
+        fileDeps[dep].deps.forEach((ns) => file.deps.add(ns));
+      }
+      if (file.deps.size !== originalDepsCount) updated = true;
+    }
+  }
+
+  for (let ns in fileDeps) {
+    fileDeps[ns].deps = Array.from(fileDeps[ns].deps.values()).sort();
   };
 
-  const fileDeps = Object.keys(files).slice(0, 3)
-    .reduce((acc, ns) => {
-      const file = files[ns];
-      acc[ns] = {ns, src: file.src, deps: getFileDeps(file)};
-      return acc;
-    }, {});
-
-  console.log(JSON.stringify(fileDeps));
+  console.log(JSON.stringify(fileDeps, '', 2));
 });
 
 process.stdin.on('end', () => {
